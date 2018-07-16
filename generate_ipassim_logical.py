@@ -19,7 +19,7 @@ def mark_replcements(d):
 def logical_chunking(path_full, thresh, min_len, max_len, target_folder):
 
     splitter = "#META#Header#End#"
-    log_units_regex = "\n#\d+-\d+"
+    log_units_regex = "#\d+-\d+"
     ar_ra = re.compile("^[ذ١٢٣٤٥٦٧٨٩٠ّـضصثقفغعهخحجدًٌَُلإإشسيبلاتنمكطٍِلأأـئءؤرلاىةوزظْلآآ]+$")
     file_name = path_full.split("/")[-1]
     # print("\n" + file_name)
@@ -34,12 +34,12 @@ def logical_chunking(path_full, thresh, min_len, max_len, target_folder):
             data = f1.read()
             data = data.split(splitter)[1].strip()
             logical_units = re.split(log_units_regex, data)
-            logical_ids = re.findall(r"#\d+-\d+", data)
+            logical_ids = re.findall(log_units_regex, data)
 
             # JSON record structure for chunks.
             # Number of chunks to be written in each file. When it reaches thresh (1000), resets and no
             # more records will be added to that file.
-            rec = '{"id":"%s", "series":"%s", "text": "%s", "unit_ids": [%s] }'
+            rec = '{"id":"%s", "series":"%s", "text": "%s", "unit_ids": %s }'
 
             # remove all logical units that don't have arabic tokens
             logical_units = [l for l in logical_units if
@@ -97,8 +97,25 @@ def create_chunks(ar_ra, file_id, max_len, min_len, rec, target_path, thresh, un
             text += ara_manipulation.textCleaner(d)  # .strip()
             i += 1
 
-        if counter >= 1:
-            if i >= units_cnt - 1:
+        if i >= units_cnt:
+            # if d_tokens_total_len > min_len:
+            if prev_text != "":
+                if d_tokens_total_len > min_len:
+                    # write prev_tex to file
+                    cex = write_chunk(cex, counter, file_id, prev_text, prev_ids_in_chunk, rec, target_path, thresh)
+                    # cex = write_chunk(cex, counter, file_id, prev_text, rec, target_path, thresh)
+
+                    counter += 1
+                    # write text to file
+                    cex = write_chunk(cex, counter, file_id, text, unit_ids_in_chunk, rec, target_path, thresh)
+                else:
+                    cex = write_chunk(cex, counter, file_id, prev_text + text, prev_ids_in_chunk + unit_ids_in_chunk,
+                                      rec, target_path, thresh)
+            else:
+                cex = write_chunk(cex, counter, file_id, text, unit_ids_in_chunk, rec, target_path, thresh)
+
+        elif counter >= 1:
+            # if i >= units_cnt - 1:
                 if d_tokens_total_len > min_len:
                     # write prev_tex to file
                     cex = write_chunk(cex, counter, file_id, prev_text, prev_ids_in_chunk, rec, target_path, thresh)
@@ -130,8 +147,8 @@ def create_chunks(ar_ra, file_id, max_len, min_len, rec, target_path, thresh, un
                     #     with open(target_path + "%05d" % counter, "w", encoding="utf8") as ft:
                     #         ft.write("\n".join(cex))
                     #     cex = []
-            else:
-                cex = write_chunk(cex, counter, file_id, prev_text, prev_ids_in_chunk, rec, target_path, thresh)
+            # else:
+            #     cex = write_chunk(cex, counter, file_id, prev_text, prev_ids_in_chunk, rec, target_path, thresh)
                 # cex = write_chunk(cex, counter, file_id, prev_text, rec, target_path, thresh)
 
                 # ID = file_id + ".log%d" % counter
@@ -141,11 +158,13 @@ def create_chunks(ar_ra, file_id, max_len, min_len, rec, target_path, thresh, un
                 #     with open(target_path + "%05d" % counter, "w", encoding="utf8") as ft:
                 #         ft.write("\n".join(cex))
                 #     cex = []
+
         counter += 1
         prev_text = text
         prev_ids_in_chunk = unit_ids_in_chunk
         unit_ids_in_chunk = []
     counterFinal = zfunc.roundup(counter, thresh)
+    print(target_path)
     with open(target_path + "%05d" % counterFinal, "w", encoding="utf8") as ft:
         ft.write("\n".join(cex))
 
@@ -154,36 +173,40 @@ def ar_token_cnt(ar_ra, text):
     return sum(ar_ra.search(t) is not None for t in re.findall(r"\w+|\W+", text))
 
 
-def join_units_in_pages(log_units_len, logical_ids, logical_units):
+def join_units_in_pages(log_units_len, ids, units):
     units_joined = []
     unit_ids_joined = []
     i = 0
     while i < log_units_len - 1:
-        toks = re.findall(r"\w+|\W+", logical_units[i])
+        toks = re.findall(r"\w+|\W+", units[i].strip())
         tmp_unit = []
         tmp_ids = []
-        while "Page" in toks[-1] and i < log_units_len - 1:
+        page_indices = [i for i, t in enumerate(toks) if 'Page' in t]
+        page_indices_continues = [i for i in page_indices if '#' not in toks[i - 1]]
+        while page_indices_continues and i < log_units_len - 1:
             if len(tmp_unit) == 0:
-                tmp_unit.extend([logical_units[i], logical_units[i + 1]])
-                tmp_ids.extend([logical_ids[i][1:].strip(), logical_ids[i + 1][1:].strip()])
+                tmp_unit.extend([units[i], units[i + 1]])
+                tmp_ids.extend([ids[i][1:].strip(), ids[i + 1][1:].strip()])
             else:
-                tmp_unit.append(logical_units[i + 1])
-                tmp_ids.append(logical_ids[i + 1][1:].strip())
+                tmp_unit.append(units[i + 1])
+                tmp_ids.append(ids[i + 1][1:].strip())
             i += 1
-            toks = re.findall(r"\w+|\W+", logical_units[i])
+            toks = re.findall(r"\w+|\W+", units[i].strip())
+            page_indices = [i for i, t in enumerate(toks) if 'Page' in t]
+            page_indices_continues = [i for i in page_indices if '#' not in toks[i - 1]]
 
         if len(tmp_unit) > 0:
             units_joined.append(" ".join(tmp_unit))
             unit_ids_joined.append(" ".join(tmp_ids))
 
         else:
-            units_joined.append(logical_units[i])
-            unit_ids_joined.append(logical_ids[i].strip())
+            units_joined.append(units[i])
+            unit_ids_joined.append(ids[i].strip())
         i += 1
     # add the latest logical unit (i == log_units_len - 1) to the list
     if i == log_units_len - 1:
-        units_joined.append(logical_units[i])
-        unit_ids_joined.append(logical_ids[i].strip())
+        units_joined.append(units[i])
+        unit_ids_joined.append(ids[i].strip())
 
     return units_joined, unit_ids_joined
 
@@ -205,7 +228,7 @@ def write_chunk(cex, counter, file_id, text, ids_in_chunk, rec, target_path, thr
 # def write_chunk(cex, counter, file_id, text, rec, target_path, thresh):
 
     id = file_id + ".log%d" % counter
-    chunk = rec % (id, file_id, text, ids_in_chunk)
+    chunk = rec % (id, file_id, text, ", ".join(ids_in_chunk))
     cex.append(chunk)
     if counter % thresh == 0:
         with open(target_path + "%05d" % counter, "w", encoding="utf8") as ft:
@@ -243,24 +266,24 @@ def process_all(input_folder, target_folder):
                     if len(tmp[1]) > 0:
                         tmp[1].sort()
                         max_units_len[f_name] = tmp[1]
-                    if count % 100 == 0:
-                        print()
-                        print("=============" * 2)
-                        print("Processed: %d" % count)
-                        print("=============" * 2)
-                        print()
-                if count == 100:
-                    break
-                else:
-                    continue
+                #     if count % 100 == 0:
+                #         print()
+                #         print("=============" * 2)
+                #         print("Processed: %d" % count)
+                #         print("=============" * 2)
+                #         print()
+                # if count == 100:
+                #     break
+                # else:
+                #     continue
                 # return
     # print(max_units_len)
-    # with open(target_folder + "_tokens_len", "w", encoding="utf8") as f_len:
-    #     json.dump(max_units_len, f_len, indent=4, ensure_ascii=False)
+    with open(target_folder + "_tokens_len", "w", encoding="utf8") as f_len:
+        json.dump(max_units_len, f_len, indent=4, ensure_ascii=False)
 
 
-# main = "/home/rostam/projs/KITAB/OpenITI/"
-# target = "/home/rostam/projs/KITAB/OpenITI/i.passim_log_Temp/"
+# main = "/home/rostam/projs/KITAB/test/"
+# target = "/home/rostam/projs/KITAB/test/"
 #
 # process_all(main, target)
 #

@@ -1,3 +1,4 @@
+import os
 import generate_ipassim_logical as g_log
 from arc import insert_logical_unit as log_unit1, insert_logical_unit_second_val as log_unit2
 
@@ -16,4 +17,6 @@ if __name__ == '__main__':
     print("\nGenerating chunks in the target folder ...")
     chunking = input("Do you want to generate chunks(y or no)?")
     if chunking == 'y':
+        if not os.path.exists(target_folder):
+                os.makedirs(target_folder)# if target_folder else print("no target path is given!")
         g_log.process_all(input_folder, target_folder)

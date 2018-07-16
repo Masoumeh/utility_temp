@@ -3,20 +3,17 @@
 import re
 import os
 
-
 splitter = "#META#Header#End#"
-arRa = re.compile("^[ذ١٢٣٤٥٦٧٨٩٠ّـضصثقفغعهخحجدًٌَُلإإشسيبلاتنمكطٍِلأأـئءؤرلاىةوزظْلآآ]+$")
 
 
 def logical_units(file):
-    fileName = file.split("/")[-1]
+    ar_ra = re.compile("^[ذ١٢٣٤٥٦٧٨٩٠ّـضصثقفغعهخحجدًٌَُلإإشسيبلاتنمكطٍِلأأـئءؤرلاىةوزظْلآآ]+$")
 
     with open(file, "r", encoding="utf8") as f1:
         book = f1.read()
 
         # splitter test
         if splitter in book:
-            # pass
             # logical units
             log_ids = re.findall("\n#\d+#", book)
             if len(log_ids) > 0:
@@ -24,10 +21,10 @@ def logical_units(file):
                 pass
             else:
                 # insert logical unit ids
-                newData = []
+                new_data = []
                 head = book.split(splitter)[0]
                 text = book.split(splitter)[1]
-                tokenCount = 0
+                token_count = 0
 
                 data = re.findall(r"\w+|\W+", text)
                 word_len = len(str(len(data)))
@@ -35,33 +32,37 @@ def logical_units(file):
 
                 for i in range(0, data_len):
                     if "\n#" in data[i]:
-                        if "Page" in data[i + 1]:
-                            newData.append(data[i])
+                        if "Page" in data[i + 1]:# or ar_token_cnt(ar_ra, data[i + 1]) <= 0:
+                            new_data.append(data[i])
                         else:
                             last = data[i].rfind("#")
-                            tokenCnt_str = str(tokenCount + 1)
-                            if len(tokenCnt_str) < word_len:
-                                tmp_cnt = tokenCnt_str.zfill(word_len)
+                            token_cnt_str = str(token_count + 1)
+                            if len(token_cnt_str) < word_len:
+                                tmp_cnt = token_cnt_str.zfill(word_len)
                             else:
-                                tmp_cnt = tokenCnt_str
+                                tmp_cnt = token_cnt_str
                             tmp = data[i][:last] + "#" + tmp_cnt + data[i][last:]
-                            newData.append(tmp)
+                            new_data.append(tmp)
 
-                    elif arRa.search(data[i]):
-                        tokenCount += 1
-                        newData.append(data[i])
+                    elif ar_token_cnt(ar_ra, data[i]):
+                        token_count += 1
+                        new_data.append(data[i])
                     else:
-                        newData.append(data[i])
+                        new_data.append(data[i])
 
-                msText = "".join(newData)
-                msText = head + splitter + msText
+                log_text = "".join(new_data)
+                log_text = head + splitter + log_text
 
-                with open(file + "_logical", "w", encoding="utf8") as f9:
-                    f9.write(msText)
+                with open(file + "_logical", "w", encoding="utf8") as f:
+                    f.write(log_text)
 
         else:
             print("The file is missing the splitter!")
             print(file)
+
+
+def ar_token_cnt(ar_ra, text):
+    return sum(ar_ra.search(t) is not None for t in re.findall(r"\w+|\W+", text))
 
 
 # process all texts in OpenITI
@@ -79,7 +80,8 @@ def process_all(folder):
                 # return
                 # input()
 
+
 # /media/rostam/Seagate Backup Plus Drive
-# process_all("/home/rostam/projs/KITAB/OpenITI")
+# process_all("/home/rostam/projs/KITAB/test")
 
 # print("Done!")
