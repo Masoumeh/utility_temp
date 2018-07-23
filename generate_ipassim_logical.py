@@ -1,12 +1,10 @@
 # Preparing passim instantiation of OpenITI based on the logical unit ids.
-
-import math
+import csv
 import os
 import re
-from ara import ara_manipulation
-import json
-
 import zfunc
+from ara import ara_manipulation
+
 
 def mark_replcements(d):
     d = d.replace("\n~~", " ")
@@ -220,7 +218,8 @@ def get_units_len(log_units_join_pages, max_len):
         tok = re.findall(r"\w+|\W+", l)
         ar_toks.append(sum(ar_ra.search(t) is not None for t in tok))
     if len(ar_toks) > 0:
-        max_tok_nrs.extend([n for n in ar_toks if n > max_len])
+        max_tok_nrs.extend([n for n in ar_toks])# if n > max_len])
+    # print(max_tok_nrs)
     return max_tok_nrs
 
 
@@ -253,7 +252,7 @@ def process_all(input_folder, target_folder):
 
         for file in files:
             # print("file: %s" % file)
-            if re.search("^\d{4}\w+\.\w+\.\w+-\w{4}_logical2(\.(mARkdown|inProgress|completed))?$", file):
+            if re.search("^\d{4}\w+\.\w+\.\w+-\w{4}_logical_new(\.(mARkdown|inProgress|completed))?$", file):
                 path_full = os.path.join(root, file)
                 f_name = path_full.split("/")[-1]
                 print(f_name)
@@ -266,6 +265,7 @@ def process_all(input_folder, target_folder):
                     if len(tmp[1]) > 0:
                         tmp[1].sort()
                         max_units_len[f_name] = tmp[1]
+                        # print(max_units_len)
                 #     if count % 100 == 0:
                 #         print()
                 #         print("=============" * 2)
@@ -279,12 +279,18 @@ def process_all(input_folder, target_folder):
                 # return
     # print(max_units_len)
     with open(target_folder + "_tokens_len", "w", encoding="utf8") as f_len:
-        json.dump(max_units_len, f_len, indent=4, ensure_ascii=False)
+        # json.dump(max_units_len, f_len, indent=4, ensure_ascii=False)
+        writer = csv.writer(f_len, delimiter='\t')
+        for k in max_units_len:
+            # print(k, " &&", max_units_len[k])
+            writer.writerow([k, max_units_len[k]])
 
 
-# main = "/home/rostam/projs/KITAB/test/"
-# target = "/home/rostam/projs/KITAB/test/"
-#
-# process_all(main, target)
+main = "/home/rostam/projs/KITAB/ara1/selected/"
+target = "/home/rostam/projs/KITAB/ara1/selected/log_chunks/"
+
+process_all(main, target)
 #
 # print("Done!")
+
+# /home/rostam/projs/KITAB/Sira/Ibn Ishaq by Source/OpenITI_sources/
