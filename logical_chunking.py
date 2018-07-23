@@ -1,6 +1,6 @@
 import os
 import generate_ipassim_logical as g_log
-from arc import insert_logical_unit as log_unit1, insert_logical_unit_second_val as log_unit2
+from chunking import insert_logical_unit_1st_val as log_unit1, insert_logical_unit_2nd_val as log_unit2
 
 if __name__ == '__main__':
 
