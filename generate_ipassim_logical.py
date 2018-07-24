@@ -63,22 +63,29 @@ def logical_chunking(path_full, thresh, min_len, max_len, target_folder):
 
 def create_chunks(ar_ra, file_id, max_len, min_len, rec, target_path, thresh, unit_ids_joined, units_cnt, units_joined):
     i = 0
-    counter = 0
+    counter = 1
     # Array of json records (chunks) to be written in the files
     cex = []
     unit_ids_in_chunk = []
     prev_ids_in_chunk = []
     prev_text = ""
-    # print("ids: ", unit_ids_joined)
-    # print(len(unit_ids_joined), " len units: ", len(units_joined))
+
     while i < units_cnt:
         d = mark_replcements(units_joined[i])  # .strip()
+        # get the tokens of the current unit
         d_tokens = re.findall(r"\w+|\W+", d)
+        # count the number of tokens in the current unit that have Arabic characters
         d_tokens_len = sum(ar_ra.search(t) is not None for t in d_tokens)
+        # length of this chunk is initialized by the number of Arabic tokens
         d_tokens_total_len = d_tokens_len
+        # Add normalized and cleaned text of this unit to the 'text' variable which is holding the text of current
+        # chunk. This variable may get expanded with more units.
         text = ara_manipulation.textCleaner(d)  # .strip()
+        # append the id of current unit in 'unit_ids_in_chunk'. This list may be extended later when more units get
+        # added to this chunk
         unit_ids_in_chunk.append(unit_ids_joined[i])
         i += 1
+        # add more units to the current chunk until we achieve the end of file or len(chunk) > min_len
         while d_tokens_len < min_len and i < units_cnt:
             d = mark_replcements(units_joined[i])  # .strip()
             d_tokens_len = ar_token_cnt(ar_ra, text) + ar_token_cnt(ar_ra, d)
@@ -87,6 +94,7 @@ def create_chunks(ar_ra, file_id, max_len, min_len, rec, target_path, thresh, un
             text += ara_manipulation.textCleaner(d)  # .strip()
             i += 1
 
+        # add more units to the current chunk until we achieve the end of file or len(chunk) > max_len
         while d_tokens_len < max_len and i < units_cnt:
             d = mark_replcements(units_joined[i])  # .strip()
             d_tokens_len = ar_token_cnt(ar_ra, text) + ar_token_cnt(ar_ra, d)
@@ -95,69 +103,61 @@ def create_chunks(ar_ra, file_id, max_len, min_len, rec, target_path, thresh, un
             text += ara_manipulation.textCleaner(d)  # .strip()
             i += 1
 
-        if i >= units_cnt:
-            # if d_tokens_total_len > min_len:
-            if prev_text != "":
-                if d_tokens_total_len > min_len:
-                    # write prev_tex to file
-                    cex = write_chunk(cex, counter, file_id, prev_text, prev_ids_in_chunk, rec, target_path, thresh)
-                    # cex = write_chunk(cex, counter, file_id, prev_text, rec, target_path, thresh)
+        # if we reach to the end of the file, we write the chunks to the file in any case!
+        # if i >= units_cnt:
+        #     # prev_text is empty in case the whole text is placed in one single chunk
+        #     # if d_tokens_total_len > min_len:
+        #     if prev_text != "":
+        #         # if the length of the last chunk (from the last unit(s)) is > min_len, then it's fine to count it as an
+        #         # individual chunk. Then, we write prev_text and text as separate chunks and no need to concat text
+        #         # to prev_text.
+        #         if d_tokens_total_len > min_len:
+        #             # write prev_tex to file
+        #             cex = write_chunk(cex, counter, file_id, prev_text, prev_ids_in_chunk, rec, target_path, thresh)
+        #             # cex = write_chunk(cex, counter, file_id, prev_text, rec, target_path, thresh)
+        #
+        #             # increment counter for ids assigned to the chunks
+        #             counter += 1
+        #             # write text to file
+        #             cex = write_chunk(cex, counter, file_id, text, unit_ids_in_chunk, rec, target_path, thresh)
+        #         # if the len(text) as the current chunk is < min_len, we concat it to prev_text and write them to file
+        #         # as one chunk. This is to avoid small chunks at the end of the file.
+        #         else:
+        #             cex = write_chunk(cex, counter, file_id, prev_text + text, prev_ids_in_chunk + unit_ids_in_chunk,
+        #                               rec, target_path, thresh)
+        #
+        #     # if prev_text is empty we just write the text--which is the current chunk--to the file. This case might
+        #     # happen when the whole book is short and the current value of text is holding it and we've reached the end
+        #     # of file.
+        #     else:
+        #         cex = write_chunk(cex, counter, file_id, text, unit_ids_in_chunk, rec, target_path, thresh)
 
-                    counter += 1
-                    # write text to file
-                    cex = write_chunk(cex, counter, file_id, text, unit_ids_in_chunk, rec, target_path, thresh)
-                else:
-                    cex = write_chunk(cex, counter, file_id, prev_text + text, prev_ids_in_chunk + unit_ids_in_chunk,
-                                      rec, target_path, thresh)
-            else:
-                cex = write_chunk(cex, counter, file_id, text, unit_ids_in_chunk, rec, target_path, thresh)
-
-        elif counter >= 1:
+        # if eof has not being reached and the current chunk is ready, we check whether it's the first time that we
+        # write into the file. It's because we want to keep track of the last chunk in the text and in case
+        # it's < min_len we add it append it to the previous chunk.
+        # elif counter >= 1:
             # if i >= units_cnt - 1:
-                if d_tokens_total_len > min_len:
+            #     if d_tokens_total_len > min_len:
                     # write prev_tex to file
-                    cex = write_chunk(cex, counter, file_id, prev_text, prev_ids_in_chunk, rec, target_path, thresh)
+                    # cex = write_chunk(cex, counter, file_id, prev_text, prev_ids_in_chunk, rec, target_path, thresh)
                     # cex = write_chunk(cex, counter, file_id, prev_text, rec, target_path, thresh)
 
-                    counter += 1
+
                     # write text to file
-                    cex = write_chunk(cex, counter, file_id, text, unit_ids_in_chunk, rec, target_path, thresh)
+        cex = write_chunk(cex, counter, file_id, text, unit_ids_in_chunk, rec, target_path, thresh)
+        counter += 1
                     # cex = write_chunk(cex, counter, file_id, text, rec, target_path, thresh)
 
-                    # print(cex)
-                    # ID = file_id + ".log%d" % counter
-                    # chunk = rec % (ID, file_id, text)#, unit_ids_in_chunk)
-                    # cex.append(chunk)
-                    # if counter % thresh == 0:
-                    #     with open(target_path + "%05d" % counter, "w", encoding="utf8") as ft:
-                    #         ft.write("\n".join(cex))
-                    #     cex = []
-                else:
-                    cex = write_chunk(cex, counter, file_id, prev_text + text, prev_ids_in_chunk + unit_ids_in_chunk,
-                                      rec, target_path, thresh)
+                # else:
+                #     cex = write_chunk(cex, counter, file_id, prev_text + text, prev_ids_in_chunk + unit_ids_in_chunk,
+                #                       rec, target_path, thresh)
                     # cex = write_chunk(cex, counter, file_id, prev_text + text,
                     #                   rec, target_path, thresh)
-
-                    # ID = file_id + ".log%d" % counter
-                    # chunk = rec % (ID, file_id, prev_text + text)#, prev_ids_in_chunk + unit_ids_in_chunk)
-                    # cex.append(chunk)
-                    # if counter % thresh == 0:
-                    #     with open(target_path + "%05d" % counter, "w", encoding="utf8") as ft:
-                    #         ft.write("\n".join(cex))
-                    #     cex = []
             # else:
             #     cex = write_chunk(cex, counter, file_id, prev_text, prev_ids_in_chunk, rec, target_path, thresh)
                 # cex = write_chunk(cex, counter, file_id, prev_text, rec, target_path, thresh)
 
-                # ID = file_id + ".log%d" % counter
-                # chunk = rec % (ID, file_id, prev_text)#, prev_ids_in_chunk)
-                # cex.append(chunk)
-                # if counter % thresh == 0:
-                #     with open(target_path + "%05d" % counter, "w", encoding="utf8") as ft:
-                #         ft.write("\n".join(cex))
-                #     cex = []
-
-        counter += 1
+        # counter += 1
         prev_text = text
         prev_ids_in_chunk = unit_ids_in_chunk
         unit_ids_in_chunk = []
@@ -179,9 +179,10 @@ def join_units_in_pages(log_units_len, ids, units):
         toks = re.findall(r"\w+|\W+", units[i].strip())
         tmp_unit = []
         tmp_ids = []
-        page_indices = [i for i, t in enumerate(toks) if 'Page' in t]
-        page_indices_continues = [i for i in page_indices if '#' not in toks[i - 1]]
-        while page_indices_continues and i < log_units_len - 1:
+        # page_indices = [i for i, t in enumerate(toks) if 'Page' in t]
+        # page_indices_continues = [i for i in page_indices if '#' not in toks[i - 1]]
+        # while page_indices_continues and i < log_units_len - 1:
+        while "Page" in toks[1] and '#' not in toks[-2]:
             if len(tmp_unit) == 0:
                 tmp_unit.extend([units[i], units[i + 1]])
                 tmp_ids.extend([ids[i][1:].strip(), ids[i + 1][1:].strip()])
@@ -282,12 +283,11 @@ def process_all(input_folder, target_folder):
         # json.dump(max_units_len, f_len, indent=4, ensure_ascii=False)
         writer = csv.writer(f_len, delimiter='\t')
         for k in max_units_len:
-            # print(k, " &&", max_units_len[k])
             writer.writerow([k, max_units_len[k]])
 
 
-main = "/home/rostam/projs/KITAB/ara1/selected/"
-target = "/home/rostam/projs/KITAB/ara1/selected/log_chunks/"
+main = "/home/rostam/projs/KITAB/Sira/Ibn Ishaq by Source/OpenITI_sources/"
+target = "/home/rostam/projs/KITAB/Sira/Ibn Ishaq by Source/OpenITI_sources_chunked/"
 
 process_all(main, target)
 #

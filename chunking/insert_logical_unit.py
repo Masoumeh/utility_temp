@@ -31,7 +31,7 @@ def logical_units(file):
                 new_data = []
                 # split the header and body of the text. We will nedd the body which is stored in the text variable.
                 head = book.split(splitter)[0]
-                text = book.split(splitter)[1]# .strip()  # we don't split to save the orignal text as it is
+                text = book.split(splitter)[1]  # .strip()  # we don't split to save the orignal text as it is
                 tokenCount = 0
 
                 # split the text into paragraphs by "\n#"
@@ -40,7 +40,7 @@ def logical_units(file):
                 word_len = len(str(len(data)))
 
                 # insert logical unit ids
-                for i in range(0, len(paras) - 1):
+                for i in range(0, len(paras)):
                     # find all tokens in this paragraph
                     p_toks = re.findall(r"\w+|\W+", paras[i])
                     # count the number of tokens which include Arabic letters or numbers
@@ -95,6 +95,6 @@ def process_all(folder):
                 logical_units(os.path.join(root, file))
 
 
-process_all("/home/rostam/projs/KITAB/ara1/selected/")
+process_all("/home/rostam/projs/KITAB/Sira/Ibn Ishaq by Source/OpenITI_sources/")
 
 print("Done!")
