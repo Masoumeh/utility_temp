@@ -1,4 +1,10 @@
-# Preparing passim instantiation of OpenITI based on the logical unit ids.
+"""
+ Preparing passim instantiation of OpenITI based on the logical unit ids.
+ The current approach does not produce chunks with length smaller than min_len (100) except the cases that the chunk is
+ being produced and before getting to the min_len, eof is being met. In this case, there will be chunks < min_len.
+ To fix this, we can either keep the chunks in memory to be able to access the previous/next one and write them to the file
+ when all the chunks are ready, or post-process the results!
+"""
 import csv
 import os
 import re
@@ -15,7 +21,6 @@ def mark_replcements(d):
 
 
 def logical_chunking(path_full, thresh, min_len, max_len, target_folder):
-
     splitter = "#META#Header#End#"
     log_units_regex = "#\d+-\d+"
     ar_ra = re.compile("^[ذ١٢٣٤٥٦٧٨٩٠ّـضصثقفغعهخحجدًٌَُلإإشسيبلاتنمكطٍِلأأـئءؤرلاىةوزظْلآآ]+$")
@@ -136,26 +141,25 @@ def create_chunks(ar_ra, file_id, max_len, min_len, rec, target_path, thresh, un
         # write into the file. It's because we want to keep track of the last chunk in the text and in case
         # it's < min_len we add it append it to the previous chunk.
         # elif counter >= 1:
-            # if i >= units_cnt - 1:
-            #     if d_tokens_total_len > min_len:
-                    # write prev_tex to file
-                    # cex = write_chunk(cex, counter, file_id, prev_text, prev_ids_in_chunk, rec, target_path, thresh)
-                    # cex = write_chunk(cex, counter, file_id, prev_text, rec, target_path, thresh)
+        # if i >= units_cnt - 1:
+        #     if d_tokens_total_len > min_len:
+        # write prev_tex to file
+        # cex = write_chunk(cex, counter, file_id, prev_text, prev_ids_in_chunk, rec, target_path, thresh)
+        # cex = write_chunk(cex, counter, file_id, prev_text, rec, target_path, thresh)
 
-
-                    # write text to file
+        # write text to file
         cex = write_chunk(cex, counter, file_id, text, unit_ids_in_chunk, rec, target_path, thresh)
         counter += 1
-                    # cex = write_chunk(cex, counter, file_id, text, rec, target_path, thresh)
+        # cex = write_chunk(cex, counter, file_id, text, rec, target_path, thresh)
 
-                # else:
-                #     cex = write_chunk(cex, counter, file_id, prev_text + text, prev_ids_in_chunk + unit_ids_in_chunk,
-                #                       rec, target_path, thresh)
-                    # cex = write_chunk(cex, counter, file_id, prev_text + text,
-                    #                   rec, target_path, thresh)
-            # else:
-            #     cex = write_chunk(cex, counter, file_id, prev_text, prev_ids_in_chunk, rec, target_path, thresh)
-                # cex = write_chunk(cex, counter, file_id, prev_text, rec, target_path, thresh)
+        # else:
+        #     cex = write_chunk(cex, counter, file_id, prev_text + text, prev_ids_in_chunk + unit_ids_in_chunk,
+        #                       rec, target_path, thresh)
+        # cex = write_chunk(cex, counter, file_id, prev_text + text,
+        #                   rec, target_path, thresh)
+        # else:
+        #     cex = write_chunk(cex, counter, file_id, prev_text, prev_ids_in_chunk, rec, target_path, thresh)
+        # cex = write_chunk(cex, counter, file_id, prev_text, rec, target_path, thresh)
 
         # counter += 1
         prev_text = text
@@ -174,6 +178,7 @@ def ar_token_cnt(ar_ra, text):
 def join_units_in_pages(log_units_len, ids, units):
     units_joined = []
     unit_ids_joined = []
+    page_pattern = re.compile("# *PageV\d+P\d+$")
     i = 0
     while i < log_units_len - 1:
         toks = re.findall(r"\w+|\W+", units[i].strip())
@@ -182,7 +187,10 @@ def join_units_in_pages(log_units_len, ids, units):
         # page_indices = [i for i, t in enumerate(toks) if 'Page' in t]
         # page_indices_continues = [i for i in page_indices if '#' not in toks[i - 1]]
         # while page_indices_continues and i < log_units_len - 1:
-        while "Page" in toks[1] and '#' not in toks[-2]:
+        while "Page" in toks[-1] and \
+                page_pattern.search(units[i].strip()) is None and i < log_units_len - 1:
+            # all("#" not in t for t in [toks[-2], toks[-3]]):
+            print(units[i])
             if len(tmp_unit) == 0:
                 tmp_unit.extend([units[i], units[i + 1]])
                 tmp_ids.extend([ids[i][1:].strip(), ids[i + 1][1:].strip()])
@@ -191,8 +199,8 @@ def join_units_in_pages(log_units_len, ids, units):
                 tmp_ids.append(ids[i + 1][1:].strip())
             i += 1
             toks = re.findall(r"\w+|\W+", units[i].strip())
-            page_indices = [i for i, t in enumerate(toks) if 'Page' in t]
-            page_indices_continues = [i for i in page_indices if '#' not in toks[i - 1]]
+            # page_indices = [i for i, t in enumerate(toks) if 'Page' in t]
+            # page_indices_continues = [i for i in page_indices if '#' not in toks[i - 1]]
 
         if len(tmp_unit) > 0:
             units_joined.append(" ".join(tmp_unit))
@@ -219,19 +227,19 @@ def get_units_len(log_units_join_pages, max_len):
         tok = re.findall(r"\w+|\W+", l)
         ar_toks.append(sum(ar_ra.search(t) is not None for t in tok))
     if len(ar_toks) > 0:
-        max_tok_nrs.extend([n for n in ar_toks])# if n > max_len])
+        max_tok_nrs.extend([n for n in ar_toks])  # if n > max_len])
     # print(max_tok_nrs)
     return max_tok_nrs
 
 
 def write_chunk(cex, counter, file_id, text, ids_in_chunk, rec, target_path, thresh):
-# def write_chunk(cex, counter, file_id, text, rec, target_path, thresh):
+    # def write_chunk(cex, counter, file_id, text, rec, target_path, thresh):
 
     id = file_id + ".log%d" % counter
     chunk = rec % (id, file_id, text, ", ".join(ids_in_chunk))
     cex.append(chunk)
     if counter % thresh == 0:
-        with open(target_path + "%05d" % counter, "w", encoding="utf8") as ft:
+        with open(target_path + "%05d" % counter + 1, "w", encoding="utf8") as ft:
             ft.write("\n".join(cex))
         cex = []
     return cex
@@ -239,7 +247,6 @@ def write_chunk(cex, counter, file_id, text, ids_in_chunk, rec, target_path, thr
 
 # process all texts in OpenITI
 def process_all(input_folder, target_folder):
-
     print("\nGenerating logical passim corpus with logical ids included ...\n")
 
     count = 1
@@ -264,7 +271,7 @@ def process_all(input_folder, target_folder):
                     tmp = logical_chunking(path_full, thresh, min_len, max_len, target_folder)
                     count += tmp[0]
                     if len(tmp[1]) > 0:
-                        tmp[1].sort()
+                        # tmp[1].sort()
                         max_units_len[f_name] = tmp[1]
                         # print(max_units_len)
                 #     if count % 100 == 0:
@@ -278,7 +285,7 @@ def process_all(input_folder, target_folder):
                 # else:
                 #     continue
                 # return
-    # print(max_units_len)
+    print(max_units_len)
     with open(target_folder + "_tokens_len", "w", encoding="utf8") as f_len:
         # json.dump(max_units_len, f_len, indent=4, ensure_ascii=False)
         writer = csv.writer(f_len, delimiter='\t')
@@ -286,11 +293,11 @@ def process_all(input_folder, target_folder):
             writer.writerow([k, max_units_len[k]])
 
 
-main = "/home/rostam/projs/KITAB/Sira/Ibn Ishaq by Source/OpenITI_sources/"
-target = "/home/rostam/projs/KITAB/Sira/Ibn Ishaq by Source/OpenITI_sources_chunked/"
+main = "/home/rostam/projs/KITAB/ara1/selected/"
+target = "/home/rostam/projs/KITAB/ara1/selected/log_chunks/"
 
 process_all(main, target)
-#
+
 # print("Done!")
 
 # /home/rostam/projs/KITAB/Sira/Ibn Ishaq by Source/OpenITI_sources/
